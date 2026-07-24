@@ -27,16 +27,21 @@ namespace UzTypist.Hooks
         private LowLevelKeyboardProc? _proc;
 
         private char _lastChar = ' ';
+        private bool _doubleQuoteOpen;
+        private bool _singleQuoteOpen;
 
         public void ResetContext()
         {
             _lastChar = ' ';
+            _doubleQuoteOpen = false;
+            _singleQuoteOpen = false;
         }
 
         private static bool IsOpenContextChar(char c)
         {
             return c == ' ' || c == '\0' || c == '(' || c == '[' || c == '{' ||
-                   c == '\n' || c == '\t';
+                   c == '\n' || c == '\r' || c == '\t' ||
+                   c == '“' || c == '‘';
         }
 
         private static bool IsModifierKey(int vk)
@@ -90,7 +95,8 @@ namespace UzTypist.Hooks
                     bool shift = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
                     char replacement;
 
-                    bool uiaOk = TryGetCharBeforeCaretWithTimeout(out char? realPrevChar);
+                    bool uiaOk = TryGetContextWithTimeout(
+                        out char? realPrevChar, out bool uiaDoubleOpen, out bool uiaSingleOpen);
 
                     if (!shift)
                     {
@@ -105,7 +111,37 @@ namespace UzTypist.Hooks
                         bool openContext = uiaOk
                             ? (realPrevChar == null || IsOpenContextChar(realPrevChar.Value))
                             : IsOpenContextChar(_lastChar);
-                        replacement = openContext ? '\u201C' : '\u201D';
+                        bool doubleOpen = uiaOk ? uiaDoubleOpen : _doubleQuoteOpen;
+                        bool singleOpen = uiaOk ? uiaSingleOpen : _singleQuoteOpen;
+
+                        if (openContext)
+                        {
+                            replacement = doubleOpen && !singleOpen ? '\u2018' : '\u201C';
+                        }
+                        else
+                        {
+                            replacement = singleOpen ? '\u2019' : '\u201D';
+                        }
+
+                        switch (replacement)
+                        {
+                            case '\u201C':
+                                _doubleQuoteOpen = true;
+                                _singleQuoteOpen = false;
+                                break;
+                            case '\u2018':
+                                _doubleQuoteOpen = true;
+                                _singleQuoteOpen = true;
+                                break;
+                            case '\u2019':
+                                _doubleQuoteOpen = doubleOpen;
+                                _singleQuoteOpen = false;
+                                break;
+                            case '\u201D':
+                                _doubleQuoteOpen = false;
+                                _singleQuoteOpen = false;
+                                break;
+                        }
                     }
 
                     SendUnicodeChar(replacement);
@@ -148,20 +184,28 @@ namespace UzTypist.Hooks
             return CallNextHookEx(_hookId, nCode, wParam, lParam);
         }
 
-        private static bool TryGetCharBeforeCaretWithTimeout(out char? charBeforeCaret)
+        private static bool TryGetContextWithTimeout(
+            out char? charBeforeCaret, out bool doubleQuoteOpen, out bool singleQuoteOpen)
         {
-            char? result = null;
+            char? prevChar = null;
+            bool dOpen = false;
+            bool sOpen = false;
             bool ok = false;
 
-            var task = Task.Run(() => ok = CaretContextReader.TryGetCharBeforeCaret(out result));
+            var task = Task.Run(() =>
+                ok = CaretContextReader.TryGetContext(out prevChar, out dOpen, out sOpen));
 
             if (!task.Wait(CARET_LOOKUP_TIMEOUT_MS))
             {
                 charBeforeCaret = null;
+                doubleQuoteOpen = false;
+                singleQuoteOpen = false;
                 return false;
             }
 
-            charBeforeCaret = result;
+            charBeforeCaret = prevChar;
+            doubleQuoteOpen = dOpen;
+            singleQuoteOpen = sOpen;
             return ok;
         }
 

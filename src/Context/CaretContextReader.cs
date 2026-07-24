@@ -6,9 +6,14 @@ namespace UzTypist.Context
 {
     internal static class CaretContextReader
     {
-        public static bool TryGetCharBeforeCaret(out char? charBeforeCaret)
+        public static bool TryGetContext(
+            out char? charBeforeCaret,
+            out bool doubleQuoteOpen,
+            out bool singleQuoteOpen)
         {
             charBeforeCaret = null;
+            doubleQuoteOpen = false;
+            singleQuoteOpen = false;
 
             try
             {
@@ -32,28 +37,35 @@ namespace UzTypist.Context
 
                 TextPatternRange caretRange = selection[0].Clone();
 
-                TextPatternRange lineRange = caretRange.Clone();
-                lineRange.ExpandToEnclosingUnit(TextUnit.Line);
-                bool atLineStart = lineRange.CompareEndpoints(
-                    TextPatternRangeEndpoint.Start, caretRange, TextPatternRangeEndpoint.Start) == 0;
+                TextPatternRange beforeRange = caretRange.Clone();
+                beforeRange.ExpandToEnclosingUnit(TextUnit.Paragraph);
+                beforeRange.MoveEndpointByRange(
+                    TextPatternRangeEndpoint.End, caretRange, TextPatternRangeEndpoint.Start);
 
-                if (atLineStart)
+                string before = beforeRange.GetText(-1) ?? string.Empty;
+
+                charBeforeCaret = before.Length > 0 ? before[before.Length - 1] : (char?)null;
+
+                foreach (char c in before)
                 {
-                    charBeforeCaret = null;
-                    return true;
+                    switch (c)
+                    {
+                        case '“':
+                            doubleQuoteOpen = true;
+                            break;
+                        case '”':
+                            doubleQuoteOpen = false;
+                            singleQuoteOpen = false;
+                            break;
+                        case '‘':
+                            singleQuoteOpen = true;
+                            break;
+                        case '’':
+                            singleQuoteOpen = false;
+                            break;
+                    }
                 }
 
-                int moved = caretRange.MoveEndpointByUnit(
-                    TextPatternRangeEndpoint.Start, TextUnit.Character, -1);
-
-                if (moved == 0)
-                {
-                    charBeforeCaret = null;
-                    return true;
-                }
-
-                string text = caretRange.GetText(1);
-                charBeforeCaret = text.Length > 0 ? text[0] : (char?)null;
                 return true;
             }
             catch
