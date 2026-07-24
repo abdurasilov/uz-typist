@@ -25,6 +25,7 @@ namespace UzTypist.Hooks
         private const int CARET_LOOKUP_TIMEOUT_MS = 150;
         private const int DOUBLE_DASH_TIMEOUT_MS = 400;
         private const char EM_DASH = '—';
+        private const char EN_DASH = '–';
         private const char NON_BOUNDARY_CHAR = '￿';
 
         private IntPtr _hookId = IntPtr.Zero;
@@ -34,6 +35,7 @@ namespace UzTypist.Hooks
         private bool _doubleQuoteOpen;
         private bool _singleQuoteOpen;
         private long _lastDashTick = long.MinValue / 2;
+        private char _charBeforeDash = ' ';
 
         public void ResetContext()
         {
@@ -41,6 +43,7 @@ namespace UzTypist.Hooks
             _doubleQuoteOpen = false;
             _singleQuoteOpen = false;
             _lastDashTick = long.MinValue / 2;
+            _charBeforeDash = ' ';
         }
 
         private static bool IsOpenContextChar(char c)
@@ -159,17 +162,29 @@ namespace UzTypist.Hooks
                     (GetAsyncKeyState(VK_SHIFT) & 0x8000) == 0)
                 {
                     long now = Environment.TickCount64;
-                    bool secondDash = _lastChar == '-' &&
-                                      (now - _lastDashTick) <= DOUBLE_DASH_TIMEOUT_MS;
+                    bool withinWindow = (now - _lastDashTick) <= DOUBLE_DASH_TIMEOUT_MS;
 
-                    if (secondDash)
+                    if (withinWindow && _lastChar == '-')
                     {
-                        SendBackspaceThenUnicode(EM_DASH);
-                        _lastChar = EM_DASH;
-                        _lastDashTick = long.MinValue / 2;
+                        char dash = _charBeforeDash >= '0' && _charBeforeDash <= '9'
+                            ? EN_DASH
+                            : EM_DASH;
+                        SendBackspaceThenUnicode(dash);
+                        _lastChar = dash;
+                        _lastDashTick = now;
                         return (IntPtr)1;
                     }
 
+                    if (withinWindow && (_lastChar == EM_DASH || _lastChar == EN_DASH))
+                    {
+                        char dash = _lastChar == EM_DASH ? EN_DASH : EM_DASH;
+                        SendBackspaceThenUnicode(dash);
+                        _lastChar = dash;
+                        _lastDashTick = now;
+                        return (IntPtr)1;
+                    }
+
+                    _charBeforeDash = _lastChar;
                     _lastChar = '-';
                     _lastDashTick = now;
                     return CallNextHookEx(_hookId, nCode, wParam, lParam);
