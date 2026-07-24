@@ -10,11 +10,14 @@ namespace UzTypist.Tray
     {
         private const string AppRegistryName = "UzTypist";
         private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
+        private const string SettingsKeyPath = @"Software\UzTypist";
+        private const string StartupConfiguredName = "StartupConfigured";
 
         private readonly NotifyIcon _trayIcon;
         private readonly KeyboardHook _hook;
         private readonly MouseClickWatcher _mouseWatcher;
         private readonly ForegroundWindowWatcher _windowWatcher;
+        private readonly ToolStripMenuItem _infoItem;
 
         public TrayAppContext()
         {
@@ -27,14 +30,24 @@ namespace UzTypist.Tray
             _windowWatcher = new ForegroundWindowWatcher(() => _hook.ResetContext());
             _windowWatcher.Start();
 
+            InitStartup();
+
             var menu = new ContextMenuStrip();
 
-            var infoItem = new ToolStripMenuItem("UzTypist faol")
+            _infoItem = new ToolStripMenuItem("UzTypist faol")
             {
                 Enabled = false
             };
-            menu.Items.Add(infoItem);
+            menu.Items.Add(_infoItem);
             menu.Items.Add(new ToolStripSeparator());
+
+            var pauseItem = new ToolStripMenuItem("Pauza")
+            {
+                CheckOnClick = true,
+                Checked = false
+            };
+            pauseItem.CheckedChanged += (_, _) => SetPaused(pauseItem.Checked);
+            menu.Items.Add(pauseItem);
 
             var startupItem = new ToolStripMenuItem("Avtomatik ishga tushirish")
             {
@@ -63,10 +76,38 @@ namespace UzTypist.Tray
             _trayIcon.ShowBalloonTip(3000);
         }
 
+        private void SetPaused(bool paused)
+        {
+            _hook.IsPaused = paused;
+            _infoItem.Text = paused ? "UzTypist pauzada" : "UzTypist faol";
+            _trayIcon.Text = paused ? "UzTypist (pauzada)" : "UzTypist";
+        }
+
+        private static string CurrentExecutablePath()
+        {
+            return Environment.ProcessPath ?? Application.ExecutablePath;
+        }
+
         private static bool IsStartupEnabled()
         {
             using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, false);
             return key?.GetValue(AppRegistryName) != null;
+        }
+
+        private static void InitStartup()
+        {
+            using var settings = Registry.CurrentUser.CreateSubKey(SettingsKeyPath);
+            bool firstRun = settings?.GetValue(StartupConfiguredName) == null;
+
+            if (firstRun)
+            {
+                SetStartup(true);
+                settings?.SetValue(StartupConfiguredName, 1);
+            }
+            else if (IsStartupEnabled())
+            {
+                SetStartup(true);
+            }
         }
 
         private static void SetStartup(bool enable)
@@ -81,7 +122,7 @@ namespace UzTypist.Tray
 
             if (enable)
             {
-                key.SetValue(AppRegistryName, $"\"{Application.ExecutablePath}\"");
+                key.SetValue(AppRegistryName, $"\"{CurrentExecutablePath()}\"");
             }
             else
             {

@@ -37,6 +37,21 @@ namespace UzTypist.Hooks
         private long _lastDashTick = long.MinValue / 2;
         private char _charBeforeDash = ' ';
 
+        private volatile bool _paused;
+
+        public bool IsPaused
+        {
+            get => _paused;
+            set
+            {
+                _paused = value;
+                if (value)
+                {
+                    ResetContext();
+                }
+            }
+        }
+
         public void ResetContext()
         {
             _lastChar = ' ';
@@ -88,7 +103,7 @@ namespace UzTypist.Hooks
 
         private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
         {
-            if (nCode >= 0 && (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN))
+            if (!_paused && nCode >= 0 && (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN))
             {
                 var data = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
 
