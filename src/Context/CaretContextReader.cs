@@ -32,6 +32,17 @@ namespace UzTypist.Context
 
                 TextPatternRange caretRange = selection[0].Clone();
 
+                TextPatternRange lineRange = caretRange.Clone();
+                lineRange.ExpandToEnclosingUnit(TextUnit.Line);
+                bool atLineStart = lineRange.CompareEndpoints(
+                    TextPatternRangeEndpoint.Start, caretRange, TextPatternRangeEndpoint.Start) == 0;
+
+                if (atLineStart)
+                {
+                    charBeforeCaret = null;
+                    return true;
+                }
+
                 int moved = caretRange.MoveEndpointByUnit(
                     TextPatternRangeEndpoint.Start, TextUnit.Character, -1);
 
