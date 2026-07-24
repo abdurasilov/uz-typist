@@ -1,0 +1,14 @@
+# Qator tugashlarini avtomatik normallashtirish
+* text=auto
+
+# C# va matn fayllari repozitoriyda LF sifatida saqlanadi
+*.cs        text eol=lf
+*.csproj    text eol=lf
+*.md        text eol=lf
+*.gitignore text eol=lf
+*.gitattributes text eol=lf
+
+# Windows skriptlari CRLF bilan saqlanadi
+*.ps1       text eol=crlf
+*.cmd       text eol=crlf
+*.bat       text eol=crlf

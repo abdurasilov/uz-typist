@@ -1,0 +1,32 @@
+# Build natijalari
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+publish/
+
+# .NET / MSBuild
+*.user
+*.suo
+*.userprefs
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Visual Studio / Rider / VS Code
+.vs/
+.vscode/
+.idea/
+*.DotSettings.user
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+
+# Windows tizim fayllari
+Thumbs.db
+Desktop.ini
+
+# Loglar va vaqtinchalik fayllar
+*.log
+*.tmp
