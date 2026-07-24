@@ -18,9 +18,13 @@ namespace UzTypist.Hooks
         private const int VK_RETURN = 0x0D;
         private const int VK_TAB = 0x09;
         private const int VK_BACK = 0x08;
+        private const int VK_OEM_MINUS = 0xBD;
+        private const int VK_SUBTRACT = 0x6D;
 
         private const uint MAGIC_TAG = 0x555A3120;
         private const int CARET_LOOKUP_TIMEOUT_MS = 150;
+        private const int DOUBLE_DASH_TIMEOUT_MS = 400;
+        private const char EM_DASH = '—';
         private const char NON_BOUNDARY_CHAR = '￿';
 
         private IntPtr _hookId = IntPtr.Zero;
@@ -29,12 +33,14 @@ namespace UzTypist.Hooks
         private char _lastChar = ' ';
         private bool _doubleQuoteOpen;
         private bool _singleQuoteOpen;
+        private long _lastDashTick = long.MinValue / 2;
 
         public void ResetContext()
         {
             _lastChar = ' ';
             _doubleQuoteOpen = false;
             _singleQuoteOpen = false;
+            _lastDashTick = long.MinValue / 2;
         }
 
         private static bool IsOpenContextChar(char c)
@@ -149,6 +155,26 @@ namespace UzTypist.Hooks
                     return (IntPtr)1;
                 }
 
+                if ((vk == VK_OEM_MINUS || vk == VK_SUBTRACT) &&
+                    (GetAsyncKeyState(VK_SHIFT) & 0x8000) == 0)
+                {
+                    long now = Environment.TickCount64;
+                    bool secondDash = _lastChar == '-' &&
+                                      (now - _lastDashTick) <= DOUBLE_DASH_TIMEOUT_MS;
+
+                    if (secondDash)
+                    {
+                        SendBackspaceThenUnicode(EM_DASH);
+                        _lastChar = EM_DASH;
+                        _lastDashTick = long.MinValue / 2;
+                        return (IntPtr)1;
+                    }
+
+                    _lastChar = '-';
+                    _lastDashTick = now;
+                    return CallNextHookEx(_hookId, nCode, wParam, lParam);
+                }
+
                 if (vk >= 0x41 && vk <= 0x5A)
                 {
                     bool shift = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
@@ -207,6 +233,56 @@ namespace UzTypist.Hooks
             doubleQuoteOpen = dOpen;
             singleQuoteOpen = sOpen;
             return ok;
+        }
+
+        private static void SendBackspaceThenUnicode(char ch)
+        {
+            var inputs = new INPUT[4];
+
+            inputs[0] = new INPUT
+            {
+                type = INPUT_KEYBOARD,
+                U = new InputUnion
+                {
+                    ki = new KEYBDINPUT
+                    {
+                        wVk = (ushort)VK_BACK,
+                        wScan = 0,
+                        dwFlags = 0,
+                        time = 0,
+                        dwExtraInfo = (UIntPtr)MAGIC_TAG
+                    }
+                }
+            };
+
+            inputs[1] = inputs[0];
+            inputs[1].U.ki.dwFlags = KEYEVENTF_KEYUP;
+
+            inputs[2] = new INPUT
+            {
+                type = INPUT_KEYBOARD,
+                U = new InputUnion
+                {
+                    ki = new KEYBDINPUT
+                    {
+                        wVk = 0,
+                        wScan = ch,
+                        dwFlags = KEYEVENTF_UNICODE,
+                        time = 0,
+                        dwExtraInfo = (UIntPtr)MAGIC_TAG
+                    }
+                }
+            };
+
+            inputs[3] = inputs[2];
+            inputs[3].U.ki.dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP;
+
+            uint sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(INPUT)));
+            if (sent != inputs.Length)
+            {
+                int error = Marshal.GetLastWin32Error();
+                System.Diagnostics.Debug.WriteLine($"SendInput xatosi: {error}");
+            }
         }
 
         private static void SendUnicodeChar(char ch)
