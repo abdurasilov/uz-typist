@@ -26,8 +26,19 @@ namespace UzTypist
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            using var context = new TrayAppContext();
-            Application.Run(context);
+            try
+            {
+                using var context = new TrayAppContext();
+                Application.Run(context);
+            }
+            catch (InvalidOperationException ex)
+            {
+                MessageBox.Show(
+                    ex.Message,
+                    "UzTypist",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
         }
     }
 }

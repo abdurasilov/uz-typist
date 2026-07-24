@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using UzTypist.Context;
 
 namespace UzTypist.Hooks
@@ -19,6 +20,8 @@ namespace UzTypist.Hooks
         private const int VK_BACK = 0x08;
 
         private const uint MAGIC_TAG = 0x555A3120;
+        private const int CARET_LOOKUP_TIMEOUT_MS = 150;
+        private const char NON_BOUNDARY_CHAR = '￿';
 
         private IntPtr _hookId = IntPtr.Zero;
         private LowLevelKeyboardProc? _proc;
@@ -28,6 +31,12 @@ namespace UzTypist.Hooks
         public void ResetContext()
         {
             _lastChar = ' ';
+        }
+
+        private static bool IsOpenContextChar(char c)
+        {
+            return c == ' ' || c == '\0' || c == '(' || c == '[' || c == '{' ||
+                   c == '\n' || c == '\t';
         }
 
         private static bool IsModifierKey(int vk)
@@ -81,7 +90,7 @@ namespace UzTypist.Hooks
                     bool shift = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
                     char replacement;
 
-                    bool uiaOk = CaretContextReader.TryGetCharBeforeCaret(out char? realPrevChar);
+                    bool uiaOk = TryGetCharBeforeCaretWithTimeout(out char? realPrevChar);
 
                     if (!shift)
                     {
@@ -94,10 +103,8 @@ namespace UzTypist.Hooks
                     else
                     {
                         bool openContext = uiaOk
-                            ? (realPrevChar == null || char.IsWhiteSpace(realPrevChar.Value) ||
-                               realPrevChar.Value == '(' )
-                            : (_lastChar == ' ' || _lastChar == '\0' || _lastChar == '(' ||
-                               _lastChar == '\n');
+                            ? (realPrevChar == null || IsOpenContextChar(realPrevChar.Value))
+                            : IsOpenContextChar(_lastChar);
                         replacement = openContext ? '\u201C' : '\u201D';
                     }
 
@@ -113,16 +120,49 @@ namespace UzTypist.Hooks
                     bool upper = shift ^ caps;
                     _lastChar = upper ? (char)vk : char.ToLowerInvariant((char)vk);
                 }
+                else if (vk >= 0x30 && vk <= 0x39)
+                {
+                    _lastChar = (char)vk;
+                }
+                else if (vk == VK_SPACE)
+                {
+                    _lastChar = ' ';
+                }
+                else if (vk == VK_RETURN)
+                {
+                    _lastChar = '\n';
+                }
+                else if (vk == VK_TAB)
+                {
+                    _lastChar = '\t';
+                }
                 else if (vk == VK_BACK || IsModifierKey(vk))
                 {
                 }
                 else
                 {
-                    _lastChar = ' ';
+                    _lastChar = NON_BOUNDARY_CHAR;
                 }
             }
 
             return CallNextHookEx(_hookId, nCode, wParam, lParam);
+        }
+
+        private static bool TryGetCharBeforeCaretWithTimeout(out char? charBeforeCaret)
+        {
+            char? result = null;
+            bool ok = false;
+
+            var task = Task.Run(() => ok = CaretContextReader.TryGetCharBeforeCaret(out result));
+
+            if (!task.Wait(CARET_LOOKUP_TIMEOUT_MS))
+            {
+                charBeforeCaret = null;
+                return false;
+            }
+
+            charBeforeCaret = result;
+            return ok;
         }
 
         private static void SendUnicodeChar(char ch)
