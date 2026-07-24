@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Kodni olish
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Commit matniga qarab versiyani hisoblash va tag qoʻyish
+        id: tag_version
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          default_bump: patch
+
+      - name: .NET SDK oʻrnatish
+        if: steps.tag_version.outputs.new_tag
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Publish qilish
+        if: steps.tag_version.outputs.new_tag
+        run: dotnet publish UzTypist.csproj -c Release
+
+      - name: Exe faylni versiya nomiga oʻzgartirish
+        if: steps.tag_version.outputs.new_tag
+        shell: pwsh
+        run: |
+          $version = "${{ steps.tag_version.outputs.new_tag }}"
+          $publishDir = "bin/Release/net10.0-windows/win-x64/publish"
+          Copy-Item "$publishDir/UzTypist.exe" "$publishDir/UzTypist-$version.exe"
+
+      - name: GitHub Release yaratish
+        if: steps.tag_version.outputs.new_tag
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag_version.outputs.new_tag }}
+          name: ${{ steps.tag_version.outputs.new_tag }}
+          files: bin/Release/net10.0-windows/win-x64/publish/UzTypist-*.exe
