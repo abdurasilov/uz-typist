@@ -10,6 +10,7 @@
     <AssemblyName>UzTypist</AssemblyName>
     <RootNamespace>UzTypist</RootNamespace>
     <Product>UzTypist</Product>
+    <ApplicationIcon>assets\uz-typist.ico</ApplicationIcon>
 
     <SelfContained>true</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
@@ -17,5 +18,11 @@
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="assets\uz-typist.ico">
+      <LogicalName>UzTypist.uz-typist.ico</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
 
 </Project>

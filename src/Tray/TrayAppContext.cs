@@ -65,7 +65,7 @@ namespace UzTypist.Tray
 
             _trayIcon = new NotifyIcon
             {
-                Icon = SystemIcons.Application,
+                Icon = LoadAppIcon(),
                 Text = "UzTypist",
                 Visible = true,
                 ContextMenuStrip = menu
@@ -74,6 +74,13 @@ namespace UzTypist.Tray
             _trayIcon.BalloonTipTitle = "UzTypist";
             _trayIcon.BalloonTipText = "Dastur ishga tushdi.";
             _trayIcon.ShowBalloonTip(3000);
+        }
+
+        private static Icon LoadAppIcon()
+        {
+            var stream = typeof(TrayAppContext).Assembly
+                .GetManifestResourceStream("UzTypist.uz-typist.ico");
+            return stream is not null ? new Icon(stream) : SystemIcons.Application;
         }
 
         private void SetPaused(bool paused)
