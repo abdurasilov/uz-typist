@@ -36,7 +36,7 @@ jobs:
 
       - name: Publish qilish
         if: steps.tag_version.outputs.new_tag
-        run: dotnet publish UzTypist.csproj -c Release
+        run: dotnet publish UzTypist.csproj -c Release -p:Version=${{ steps.tag_version.outputs.new_version }}
 
       - name: Exe faylni versiya nomiga oʻzgartirish
         if: steps.tag_version.outputs.new_tag
